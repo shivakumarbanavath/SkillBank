@@ -211,3 +211,6 @@ npm run db:seed:business
 
 ## 📄 License
 This project is proprietary and built for the SkillBank campus initiative.
+
+# SkillBank
+SkillBank — A hyperlocal skill-sharing platform where people exchange skills, learn from each other, and grow together through collaborative learning and community connections.
