@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Build output
+dist/
+build/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Vercel
+.vercel/
+
+# Testing
+coverage/
+
+# Local databases
+*.db
+*.db-journal
+
+# Logs
+npm-debug.log*
+
+# TypeScript build cache
+*.tsbuildinfo

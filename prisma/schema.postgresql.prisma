@@ -1,0 +1,801 @@
+// SkillBank Prisma Schema
+// Database: SQLite (dev) / PostgreSQL (production)
+// ORM: Prisma 6.x
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS (SQLite uses String, mapped via Prisma)
+// ============================================================
+
+// User role
+// USER: regular user
+// ADMIN: platform administrator
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  role          String    @default("USER") // USER | ADMIN
+  status        String    @default("ACTIVE") // ACTIVE | SUSPENDED | DELETED
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts        Account[]
+  sessions        Session[]
+  profile         Profile?
+  teachingSkills  TeachingSkill[]
+  learningInterests LearningInterest[]
+  availability    Availability[]
+  sessionsAsTeacher SkillSession[] @relation("TeacherSessions")
+  sessionsAsLearner SkillSession[] @relation("LearnerSessions")
+  reviewsGiven    Review[]   @relation("ReviewsGiven")
+  reviewsReceived Review[]   @relation("ReviewsReceived")
+  creditAccount   CreditAccount?
+  creditTransactions CreditTransaction[]
+  conversationsAsParticipant ConversationParticipant[]
+  messagesSent    Message[]
+  notifications   Notification[]
+  reportsSubmitted Report[]  @relation("ReporterReports")
+  reportsReceived  Report[]  @relation("ReportedReports")
+  blocksGiven     UserBlock[] @relation("Blocker")
+  blocksReceived  UserBlock[] @relation("Blocked")
+  verificationRequest VerificationRequest?
+  subscription    Subscription?
+  groupSessionsTeaching GroupSession[] @relation("GroupTeacher")
+  groupSessionParticipants GroupSessionParticipant[]
+  coursesTaught   Course[]
+  enrollments     Enrollment[]
+  certificates    Certificate[]
+  workshopsOrganized Workshop[] @relation("WorkshopOrganizer")
+  workshopRegistrations WorkshopRegistration[]
+  eventsOrganized Event[]    @relation("EventOrganizer")
+  eventRegistrations EventRegistration[]
+  auditLogs       AuditLog[]
+  payments        Payment[]
+
+  @@index([email])
+  @@index([role])
+  @@index([status])
+}
+
+// Auth.js compatible Account model
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  password          String? // for credentials provider
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+// Auth.js Session model
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Auth.js VerificationToken for email verification
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Password reset tokens
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+}
+
+// ============================================================
+// PROFILE
+// ============================================================
+
+model Profile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  username        String   @unique
+  displayName     String
+  bio             String?
+  avatar          String?
+  campus          String?
+  institution     String?
+  city            String?
+  country         String   @default("India")
+  latitude        Float?
+  longitude       Float?
+  languages       String   @default("[]") // JSON array stored as string for SQLite
+  preferredFormat String   @default("EITHER") // IN_PERSON | ONLINE | EITHER
+  onboardingStep  Int      @default(0) // 0=not started, 5=complete
+  onboardingDone  Boolean  @default(false)
+  isPublic        Boolean  @default(true)
+  showEmail       Boolean  @default(false)
+  showLocation    Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([username])
+  @@index([campus])
+  @@index([city])
+}
+
+// ============================================================
+// SKILLS
+// ============================================================
+
+model SkillCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  icon        String?
+  description String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  teachingSkills    TeachingSkill[]
+  learningInterests LearningInterest[]
+  courses           Course[]
+  groupSessions     GroupSession[]
+}
+
+model TeachingSkill {
+  id           String   @id @default(cuid())
+  userId       String
+  categoryId   String
+  skillName    String
+  description  String?
+  proficiency  String   @default("INTERMEDIATE") // BEGINNER | INTERMEDIATE | ADVANCED | EXPERT
+  format       String   @default("EITHER") // IN_PERSON | ONLINE | EITHER
+  duration     Int      @default(60) // minutes
+  prerequisites String? // text
+  tags         String   @default("[]") // JSON array
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category SkillCategory @relation(fields: [categoryId], references: [id])
+  sessions SkillSession[]
+
+  @@index([userId])
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([proficiency])
+}
+
+model LearningInterest {
+  id         String   @id @default(cuid())
+  userId     String
+  categoryId String
+  skillName  String
+  notes      String?
+  priority   Int      @default(1) // 1=low, 2=medium, 3=high
+  createdAt  DateTime @default(now())
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category SkillCategory @relation(fields: [categoryId], references: [id])
+
+  @@unique([userId, categoryId, skillName])
+  @@index([userId])
+  @@index([categoryId])
+}
+
+model Availability {
+  id        String   @id @default(cuid())
+  userId    String
+  dayOfWeek Int      // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime String   // "HH:MM" format
+  endTime   String   // "HH:MM" format
+  timezone  String   @default("Asia/Kolkata")
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([dayOfWeek])
+}
+
+// ============================================================
+// SESSIONS
+// ============================================================
+
+model SkillSession {
+  id              String    @id @default(cuid())
+  teacherId       String
+  learnerId       String
+  teachingSkillId String
+  title           String
+  description     String?
+  scheduledDate   DateTime
+  startTime       String    // "HH:MM"
+  durationMinutes Int       @default(60)
+  format          String    // IN_PERSON | ONLINE
+  meetingLink     String?
+  location        String?
+  status          String    @default("REQUESTED") // REQUESTED | ACCEPTED | DECLINED | CANCELLED | COMPLETED | NO_SHOW | DISPUTED
+  cancelledBy     String?   // USER_ID
+  cancelReason    String?
+  creditCost      Int       @default(10) // credits learner pays
+  idempotencyKey  String?   @unique
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  teacher       User          @relation("TeacherSessions", fields: [teacherId], references: [id])
+  learner       User          @relation("LearnerSessions", fields: [learnerId], references: [id])
+  teachingSkill TeachingSkill @relation(fields: [teachingSkillId], references: [id])
+  reviews       Review[]
+  creditTransactions CreditTransaction[]
+  creditReservations CreditReservation[]
+  dispute       SessionDispute?
+
+  @@index([teacherId])
+  @@index([learnerId])
+  @@index([status])
+  @@index([scheduledDate])
+  @@index([teachingSkillId])
+}
+
+model SessionDispute {
+  id          String   @id @default(cuid())
+  sessionId   String   @unique
+  raisedById  String
+  reason      String
+  description String?
+  status      String   @default("OPEN") // OPEN | UNDER_REVIEW | RESOLVED | DISMISSED
+  resolution  String?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  session SkillSession @relation(fields: [sessionId], references: [id])
+
+  @@index([status])
+}
+
+// ============================================================
+// CREDITS
+// ============================================================
+
+model CreditAccount {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  balance          Int      @default(0) // in full credits (integers)
+  reservedBalance  Int      @default(0) // credits reserved for pending sessions
+  totalEarned      Int      @default(0)
+  totalSpent       Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions CreditTransaction[]
+  reservations CreditReservation[]
+
+  @@index([userId])
+}
+
+model CreditTransaction {
+  id             String   @id @default(cuid())
+  userId         String
+  accountId      String
+  type           String   // SESSION_EARNING | SESSION_SPENDING | CREDIT_RELEASE | REFUND | REVERSAL | WELCOME_BONUS | ADMIN_ADJUSTMENT
+  amount         Int      // positive = credit, negative = debit
+  balanceAfter   Int      // balance after this transaction
+  sessionId      String?
+  description    String
+  idempotencyKey String?  @unique
+  createdAt      DateTime @default(now())
+
+  user    User          @relation(fields: [userId], references: [id])
+  account CreditAccount @relation(fields: [accountId], references: [id])
+  session SkillSession? @relation(fields: [sessionId], references: [id])
+
+  @@index([userId])
+  @@index([accountId])
+  @@index([sessionId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model CreditReservation {
+  id        String    @id @default(cuid())
+  userId    String
+  accountId String
+  sessionId String
+  amount    Int       // reserved amount
+  status    String    @default("ACTIVE") // ACTIVE | RELEASED | SETTLED | CANCELLED
+  expiresAt DateTime?
+  settledAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  account CreditAccount @relation(fields: [accountId], references: [id])
+  session SkillSession  @relation(fields: [sessionId], references: [id])
+
+  @@index([userId])
+  @@index([sessionId])
+  @@index([status])
+}
+
+// ============================================================
+// REVIEWS
+// ============================================================
+
+model Review {
+  id          String   @id @default(cuid())
+  sessionId   String
+  reviewerId  String
+  revieweeId  String
+  rating      Int      // 1-5
+  comment     String?
+  isReported  Boolean  @default(false)
+  reportReason String?
+  rewardIssued Boolean @default(false)
+  rewardAmount Int?    // credits awarded to teacher
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  session  SkillSession @relation(fields: [sessionId], references: [id])
+  reviewer User         @relation("ReviewsGiven", fields: [reviewerId], references: [id])
+  reviewee User         @relation("ReviewsReceived", fields: [revieweeId], references: [id])
+
+  @@unique([sessionId, reviewerId]) // one review per reviewer per session
+  @@index([revieweeId])
+  @@index([rating])
+  @@index([sessionId])
+}
+
+// ============================================================
+// MESSAGING
+// ============================================================
+
+model Conversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([updatedAt])
+}
+
+model ConversationParticipant {
+  id             String    @id @default(cuid())
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  joinedAt       DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@index([conversationId])
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  senderId       String
+  content        String
+  isDeleted      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   // SESSION_REQUEST | SESSION_ACCEPTED | SESSION_DECLINED | SESSION_CANCELLED | NEW_MESSAGE | NEW_REVIEW | CREDIT_EARNED | CREDIT_SPENT | VERIFICATION_UPDATE | DISPUTE | COURSE_ENROLLED | WORKSHOP_REGISTERED
+  title     String
+  body      String
+  link      String?
+  isRead    Boolean  @default(false)
+  data      String?  // JSON metadata
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// ============================================================
+// TRUST AND SAFETY
+// ============================================================
+
+model Report {
+  id           String   @id @default(cuid())
+  reporterId   String
+  reportedId   String
+  type         String   // USER | REVIEW | MESSAGE | SKILL_LISTING | SESSION
+  targetId     String   // ID of the reported entity
+  reason       String
+  description  String?
+  status       String   @default("PENDING") // PENDING | UNDER_REVIEW | RESOLVED | DISMISSED
+  resolution   String?
+  reviewedById String?
+  resolvedAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  reporter User @relation("ReporterReports", fields: [reporterId], references: [id])
+  reported User @relation("ReportedReports", fields: [reportedId], references: [id])
+
+  @@index([reportedId])
+  @@index([status])
+  @@index([type])
+}
+
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  reason    String?
+  createdAt DateTime @default(now())
+
+  blocker User @relation("Blocker", fields: [blockerId], references: [id])
+  blocked User @relation("Blocked", fields: [blockedId], references: [id])
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@index([blockedId])
+}
+
+model VerificationRequest {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  type        String   // EMAIL | CAMPUS | INSTITUTION
+  institution String?
+  campus      String?
+  document    String?  // URL to verification document
+  status      String   @default("PENDING") // PENDING | VERIFIED | REJECTED
+  reviewedById String?
+  reviewNote  String?
+  submittedAt DateTime @default(now())
+  reviewedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+// ============================================================
+// SUBSCRIPTIONS
+// ============================================================
+
+model Subscription {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  plan             String    @default("FREE") // FREE | PREMIUM
+  status           String    @default("ACTIVE") // ACTIVE | CANCELLED | EXPIRED | PAST_DUE
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelledAt        DateTime?
+  paymentProvider    String?
+  externalId         String?   // provider subscription ID
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([plan])
+}
+
+// ============================================================
+// GROUP SESSIONS
+// ============================================================
+
+model GroupSession {
+  id              String    @id @default(cuid())
+  teacherId       String
+  categoryId      String
+  title           String
+  description     String?
+  skillName       String
+  format          String    // IN_PERSON | ONLINE
+  scheduledAt     DateTime
+  durationMinutes Int       @default(90)
+  capacity        Int       @default(10)
+  enrolledCount   Int       @default(0)
+  creditCost      Int       @default(5)
+  meetingLink     String?
+  location        String?
+  status          String    @default("OPEN") // OPEN | FULL | CANCELLED | COMPLETED
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  teacher      User                      @relation("GroupTeacher", fields: [teacherId], references: [id])
+  category     SkillCategory             @relation(fields: [categoryId], references: [id])
+  participants GroupSessionParticipant[]
+
+  @@index([teacherId])
+  @@index([status])
+  @@index([scheduledAt])
+  @@index([categoryId])
+}
+
+model GroupSessionParticipant {
+  id             String   @id @default(cuid())
+  groupSessionId String
+  userId         String
+  status         String   @default("REGISTERED") // REGISTERED | CANCELLED | ATTENDED
+  joinedAt       DateTime @default(now())
+
+  groupSession GroupSession @relation(fields: [groupSessionId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@unique([groupSessionId, userId])
+  @@index([userId])
+  @@index([groupSessionId])
+}
+
+// ============================================================
+// COURSES AND MASTERCLASSES
+// ============================================================
+
+model Course {
+  id              String   @id @default(cuid())
+  instructorId    String
+  categoryId      String
+  title           String
+  slug            String   @unique
+  description     String
+  shortDesc       String?
+  thumbnail       String?
+  priceInr        Int      @default(0) // 0 = free
+  duration        Int?     // total hours
+  level           String   @default("BEGINNER") // BEGINNER | INTERMEDIATE | ADVANCED
+  learningOutcomes String  @default("[]") // JSON array
+  prerequisites   String?
+  isPublished     Boolean  @default(false)
+  hasCertificate  Boolean  @default(false)
+  enrollmentCount Int      @default(0)
+  rating          Float    @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  instructor  User          @relation(fields: [instructorId], references: [id])
+  category    SkillCategory @relation(fields: [categoryId], references: [id])
+  enrollments Enrollment[]
+  certificates Certificate[]
+
+  @@index([instructorId])
+  @@index([categoryId])
+  @@index([isPublished])
+  @@index([slug])
+}
+
+model Enrollment {
+  id          String    @id @default(cuid())
+  courseId    String
+  userId      String
+  status      String    @default("ACTIVE") // ACTIVE | COMPLETED | CANCELLED | REFUNDED
+  paidAmount  Int       @default(0)
+  paymentId   String?
+  progress    Int       @default(0) // percentage 0-100
+  completedAt DateTime?
+  enrolledAt  DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  course  Course @relation(fields: [courseId], references: [id])
+  user    User   @relation(fields: [userId], references: [id])
+
+  @@unique([courseId, userId])
+  @@index([userId])
+  @@index([courseId])
+}
+
+model Certificate {
+  id          String   @id @default(cuid())
+  userId      String
+  courseId    String
+  enrollmentId String?
+  certificateNo String @unique
+  issuedAt    DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+
+  @@unique([userId, courseId])
+}
+
+// ============================================================
+// WORKSHOPS
+// ============================================================
+
+model Workshop {
+  id              String   @id @default(cuid())
+  organizerId     String
+  title           String
+  description     String
+  format          String   // IN_PERSON | ONLINE
+  scheduledAt     DateTime
+  durationMinutes Int      @default(120)
+  capacity        Int      @default(30)
+  registeredCount Int      @default(0)
+  priceInr        Int      @default(0)
+  venue           String?
+  meetingLink     String?
+  status          String   @default("OPEN") // OPEN | FULL | CANCELLED | COMPLETED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizer     User                   @relation("WorkshopOrganizer", fields: [organizerId], references: [id])
+  registrations WorkshopRegistration[]
+
+  @@index([organizerId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model WorkshopRegistration {
+  id         String   @id @default(cuid())
+  workshopId String
+  userId     String
+  status     String   @default("REGISTERED") // REGISTERED | CANCELLED | ATTENDED
+  paidAmount Int      @default(0)
+  paymentId  String?
+  registeredAt DateTime @default(now())
+
+  workshop Workshop @relation(fields: [workshopId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([workshopId, userId])
+  @@index([userId])
+  @@index([workshopId])
+}
+
+// ============================================================
+// EVENTS
+// ============================================================
+
+model Event {
+  id              String   @id @default(cuid())
+  organizerId     String
+  title           String
+  description     String
+  type            String   // HACKATHON | SHOWCASE | CULTURAL | WORKSHOP | CORPORATE | OTHER
+  format          String   // IN_PERSON | ONLINE | HYBRID
+  startsAt        DateTime
+  endsAt          DateTime?
+  venue           String?
+  meetingLink     String?
+  capacity        Int?
+  registeredCount Int      @default(0)
+  priceInr        Int      @default(0)
+  campus          String?
+  institution     String?
+  isFeatured      Boolean  @default(false)
+  status          String   @default("UPCOMING") // UPCOMING | LIVE | COMPLETED | CANCELLED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organizer     User                @relation("EventOrganizer", fields: [organizerId], references: [id])
+  registrations EventRegistration[]
+
+  @@index([organizerId])
+  @@index([status])
+  @@index([startsAt])
+  @@index([type])
+}
+
+model EventRegistration {
+  id           String   @id @default(cuid())
+  eventId      String
+  userId       String
+  status       String   @default("REGISTERED") // REGISTERED | CANCELLED | ATTENDED
+  paidAmount   Int      @default(0)
+  paymentId    String?
+  registeredAt DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([eventId, userId])
+  @@index([userId])
+  @@index([eventId])
+}
+
+// ============================================================
+// PAYMENTS
+// ============================================================
+
+model Payment {
+  id              String   @id @default(cuid())
+  userId          String
+  type            String   // COURSE | WORKSHOP | EVENT | SUBSCRIPTION | CREDIT_PURCHASE
+  targetId        String   // ID of course/workshop/event
+  amountInr       Int      // amount in paise (smallest unit)
+  currency        String   @default("INR")
+  status          String   @default("PENDING") // PENDING | COMPLETED | FAILED | REFUNDED
+  provider        String?  // RAZORPAY | STRIPE | etc.
+  externalId      String?  // provider payment ID
+  externalOrderId String?
+  failureReason   String?
+  refundedAt      DateTime?
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  // admin who performed action
+  action     String   // e.g., "USER_SUSPENDED", "CREDIT_ADJUSTED"
+  targetType String?  // e.g., "User", "CreditAccount"
+  targetId   String?
+  metadata   String?  // JSON
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}

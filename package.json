@@ -1,0 +1,63 @@
+{
+  "name": "skillbank",
+  "version": "1.0.0",
+  "description": "SkillBank - Hyperlocal Skill Exchange Platform",
+  "private": true,
+  "scripts": {
+    "dev": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "check:types": "node --max-old-space-size=4096 --max-semi-space-size=64 node_modules/typescript/bin/tsc --noEmit",
+    "db:push": "node node_modules/prisma/build/index.js db push",
+    "db:migrate": "node node_modules/prisma/build/index.js migrate dev",
+    "db:seed": "node --import tsx/esm prisma/seed.ts",
+    "db:seed:business": "node --import tsx/esm prisma/seed-business.ts",
+    "db:push:pg": "npx prisma db push --schema=prisma/schema.postgresql.prisma",
+    "db:deploy:pg": "npx prisma migrate deploy --schema=prisma/schema.postgresql.prisma",
+    "db:generate:pg": "npx prisma generate --schema=prisma/schema.postgresql.prisma",
+    "db:studio": "node node_modules/prisma/build/index.js studio",
+    "postinstall": "node node_modules/prisma/build/index.js generate"
+  },
+  "dependencies": {
+    "@eslint/eslintrc": "^3.3.7",
+    "@hookform/resolvers": "^5.9.2",
+    "@prisma/client": "^5.22.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.6.1",
+    "bcryptjs": "^3.0.3",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.2",
+    "framer-motion": "^14.3.0",
+    "lucide-react": "^1.59.0",
+    "nanoid": "^6.0.2",
+    "next": "^15.5.28",
+    "next-auth": "^5.0.0-beta.32",
+    "postcss": "^8.5.30",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-hook-form": "^7.90.0",
+    "recharts": "^3.10.1",
+    "tailwind-merge": "^3.7.0",
+    "tailwindcss": "^3.4.19",
+    "tsx": "^4.23.15",
+    "zod": "^4.6.7",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0",
+    "typescript": "^5.9.3"
+  },
+  "allowScripts": {
+    "@prisma/client@5.22.0": true,
+    "@prisma/engines@5.22.0": true,
+    "esbuild@0.28.2": true,
+    "prisma@5.22.0": true,
+    "unrs-resolver@1.12.2": true
+  }
+}
