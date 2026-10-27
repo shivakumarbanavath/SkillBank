@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "node --max-old-space-size=4096 ./node_modules/next/dist/bin/next dev",
-    "build": "next build",
+    "build": "prisma generate --schema=prisma/schema.postgresql.prisma && next build",
     "start": "next start",
     "lint": "next lint",
     "check:types": "node --max-old-space-size=4096 --max-semi-space-size=64 node_modules/typescript/bin/tsc --noEmit",
@@ -17,7 +17,7 @@
     "db:deploy:pg": "npx prisma migrate deploy --schema=prisma/schema.postgresql.prisma",
     "db:generate:pg": "npx prisma generate --schema=prisma/schema.postgresql.prisma",
     "db:studio": "node node_modules/prisma/build/index.js studio",
-    "postinstall": "node node_modules/prisma/build/index.js generate"
+    "postinstall": "prisma generate --schema=prisma/schema.postgresql.prisma"
   },
   "dependencies": {
     "@eslint/eslintrc": "^3.3.7",
